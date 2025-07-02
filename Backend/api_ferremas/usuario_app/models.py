@@ -106,8 +106,6 @@ class Cliente(models.Model):
     )
     rut = models.CharField(max_length=12, unique=True, blank=True, null=True, verbose_name="RUT") # ¡CAMPO RUT AÑADIDO!
     # Los campos nombre, apellido, email se gestionan a través del modelo 'Usuario' (usuario)
-    direccion_calle_numero = models.CharField(max_length=255, verbose_name="Dirección (Calle y Número)")
-    # comuna = models.ForeignKey(Comuna, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Comuna")
     num_telefono = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número de Teléfono")
     # fecha_registro del perfil, la fecha de registro del usuario está en el modelo Usuario (date_joined)
     fecha_creacion_perfil = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación del Perfil")
@@ -140,3 +138,36 @@ class Cliente(models.Model):
             return ""
         except (settings.AUTH_USER_MODEL.DoesNotExist, AttributeError): # type: ignore
             return ""
+
+class DireccionCliente(models.Model):
+    """
+    Almacena las direcciones de envío de un cliente.
+    Un cliente puede tener múltiples direcciones.
+    """
+    cliente = models.ForeignKey(
+        Cliente, 
+        on_delete=models.CASCADE, 
+        related_name='direcciones',
+        verbose_name="Cliente"
+    )
+    alias = models.CharField(max_length=50, verbose_name="Alias de la Dirección (ej: Casa, Oficina)")
+    direccion_calle_numero = models.CharField(max_length=255, verbose_name="Dirección (Calle y Número)")
+    # comuna = models.ForeignKey(Comuna, on_delete=models.SET_NULL, null=True, verbose_name="Comuna")
+    informacion_adicional = models.CharField(max_length=255, blank=True, null=True, verbose_name="Información Adicional (ej: Depto, Casa)")
+    
+    es_principal = models.BooleanField(
+        default=False, 
+        verbose_name="¿Es la dirección principal?",
+        help_text="Marca esta casilla si esta es tu dirección de envío por defecto."
+    )
+    sucursal_favorita = models.ForeignKey(
+        Sucursal, 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name='clientes_preferentes',
+        verbose_name="Sucursal Favorita",
+        help_text="Selecciona tu sucursal preferida para retiros o para ver stock local."
+    )
+
+    def __str__(self):
+        return f"Dirección '{self.alias}' de {self.cliente.usuario.username}"

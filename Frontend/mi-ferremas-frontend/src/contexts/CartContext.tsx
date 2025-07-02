@@ -1,21 +1,23 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 
 // 1. Define la interfaz para un ítem del carrito
-interface CartItem {
+export interface CartItem { // Añadido 'export' aquí
   id: number;
   name: string;
   price: number;
   quantity: number;
+  imagen_url?: string;
 }
 
 // 2. Define la interfaz para el contexto del carrito
 interface CartContextType {
-  cartItems: CartItem[];
+  items: CartItem[];
   totalItems: number;
+  totalPrice: number;
   addToCart: (item: CartItem) => void;
-  removeFromCart: (itemId: number) => void; // Puedes implementar esto más tarde
-  updateQuantity: (itemId: number, quantity: number) => void; // Puedes implementar esto más tarde
-  clearCart: () => void; // Puedes implementar esto más tarde
+  removeItem: (itemId: number) => void;
+  updateQuantity: (itemId: number, quantity: number) => void;
+  clearCart: () => void;
 }
 
 // Crea el contexto con un valor inicial undefined
@@ -32,31 +34,45 @@ export const useCart = () => {
 
 // Proveedor del contexto del carrito
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>([]);
 
-  const addToCart = (item: CartItem) => {
-    setCartItems((prevItems) => {
+  const addToCart = useCallback((item: CartItem) => {
+    setItems((prevItems) => {
       const existingItem = prevItems.find((i) => i.id === item.id);
       if (existingItem) {
         return prevItems.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+          i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i,
         );
       }
-      return [...prevItems, item];
+      return [...prevItems, { ...item, quantity: item.quantity || 1 }];
     });
-  };
+  }, []);
 
-  const removeFromCart = (itemId: number) => { /* Implementar lógica para remover */ };
-  const updateQuantity = (itemId: number, quantity: number) => { /* Implementar lógica para actualizar cantidad */ };
-  const clearCart = () => { /* Implementar lógica para limpiar carrito */ };
+  const removeItem = useCallback((itemId: number) => {
+    setItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
+  }, []);
 
-  const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const updateQuantity = useCallback((itemId: number, quantity: number) => {
+    setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === itemId ? { ...item, quantity: Math.max(0, quantity) } : item,
+      ).filter(item => item.quantity > 0), // Opcional: remover si la cantidad es 0
+    );
+  }, []);
+
+  const clearCart = useCallback(() => {
+    setItems([]);
+  }, []);
+
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const contextValue: CartContextType = {
-    cartItems,
+    items,
     totalItems,
+    totalPrice,
     addToCart,
-    removeFromCart,
+    removeItem,
     updateQuantity,
     clearCart,
   };

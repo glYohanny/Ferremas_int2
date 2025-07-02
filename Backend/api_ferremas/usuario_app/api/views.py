@@ -232,27 +232,16 @@ class UnifiedUserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        
-        # Priorizar perfil de Personal si existe (ej. un admin también podría ser cliente)
-        if hasattr(user, 'perfil_personal') and user.perfil_personal is not None:
-            # Asegúrate que PersonalSerializer devuelva 'tipo_perfil': 'Personal'
-            serializer = PersonalSerializer(user.perfil_personal) 
-            return Response(serializer.data)
-        elif hasattr(user, 'perfil_cliente') and user.perfil_cliente is not None:
-            # UserProfileDataSerializer ya devuelve 'tipo_perfil': 'Cliente'
-            serializer = UserProfileDataSerializer(user.perfil_cliente)
-            return Response(serializer.data)
-        else:
-            # Usuario base sin perfil específico, o un error
-            # Devolver datos básicos del Usuario y un tipo_perfil genérico
-            base_user_data = {
-                "id": user.id, "email": user.email, "username": user.username,
-                "first_name": user.first_name, "last_name": user.last_name,
-                "is_staff": user.is_staff,
-                "tipo_perfil": "Admin" if user.is_staff else "Usuario Base"
-            }
-            return Response(base_user_data, status=status.HTTP_200_OK)
+        """
+        Devuelve el objeto del usuario autenticado, serializado con el
+        UsuarioSerializer que ahora incluye todos los perfiles anidados.
+        """
+        # Para asegurar que perfil_personal y perfil_cliente estén cargados
+        # Usamos select_related para OneToOneField
+        user_instance = request.user
+        user_instance = user_instance.__class__.objects.select_related('perfil_personal', 'perfil_cliente').get(pk=user_instance.pk)
+        serializer = UsuarioSerializer(user_instance)
+        return Response(serializer.data)
 
 
 class VendedorClientesFrecuentesAPIView(generics.ListAPIView):

@@ -1,34 +1,9 @@
 import React, { useState } from 'react';
 import api from '../../../services/api'; // Importamos el servicio API
 import { useNavigate } from 'react-router-dom'; // Importamos useNavigate
-
-// Definimos una interfaz para el tipo de dato de un pedido
-// Reutilizamos la misma interfaz que en PedidosActivosWidget.tsx
-interface Pedido {
-  id: number;
-  cliente_nombre: string;
-  estado: string;
-  total_pedido: number;
-  fecha_pedido: string;
-}
-
-const getStatusColor = (estado: string) => {
-  switch (estado) {
-    case 'POR_CONFIRMAR':
-      return 'bg-yellow-200 text-yellow-800';
-    case 'PREPARADO':
-      return 'bg-blue-200 text-blue-800';
-    case 'EN_ESPERA_DE_PAGO':
-      return 'bg-orange-200 text-orange-800';
-    case 'ENTREGADO':
-      return 'bg-green-200 text-green-800';
-    case 'CANCELADO':
-      return 'bg-red-200 text-red-800';
-    // Añadir otros estados si es necesario
-    default:
-      return 'bg-gray-200 text-gray-800';
-  }
-};
+import { Pedido } from '../../../types/pedido';
+import { getStatusColor } from '../../../utils/pedidoUtils';
+import ContactModal, { Contactable } from '../../contacto/ContactModal';
 
 const BuscadorPedidos: React.FC = () => {
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
@@ -37,6 +12,8 @@ const BuscadorPedidos: React.FC = () => {
   const [errorResultados, setErrorResultados] = useState<string | null>(null);
   const [currentSearchTerm, setCurrentSearchTerm] = useState(''); // Para mostrar el término de la última búsqueda
   const [busquedaRealizada, setBusquedaRealizada] = useState(false); // Para saber si ya se buscó algo
+  const [showContactModal, setShowContactModal] = useState(false); // Estado para controlar la visibilidad del modal
+  const [contactTarget, setContactTarget] = useState<Contactable | null>(null); // Cliente seleccionado para contactar
   const navigate = useNavigate(); // Inicializamos el hook de navegación
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -58,6 +35,20 @@ const BuscadorPedidos: React.FC = () => {
     } finally {
       setLoadingResultados(false);
     }
+  };
+
+  const handleContactClient = (pedido: Pedido) => {
+    setContactTarget({
+      nombre: pedido.cliente_nombre,
+      email: pedido.cliente_email,
+      telefono: pedido.cliente_telefono,
+    });
+    setShowContactModal(true);
+  };
+
+  const handlePrintOrder = (pedido: Pedido) => {
+    // Navega a la página de detalles del pedido, y pasa un parámetro para indicar que se debe imprimir
+    navigate(`/pedido/${pedido.id}?print=true`);
   };
 
   return (
@@ -102,10 +93,9 @@ const BuscadorPedidos: React.FC = () => {
                         <th className="py-2 px-3">Estado</th>
                         <th className="py-2 px-3 text-right">Total</th>
                         <th className="py-2 px-3 text-center">Acciones</th>
-                      </tr>
+                      </tr> 
                     </thead>
-                    <tbody>
-                      {pedidosResultados.map((pedido) => (
+                      <tbody>                      {pedidosResultados.map((pedido) => (
                         <tr key={pedido.id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-3 font-medium text-blue-600">PED-{pedido.id.toString().padStart(3, '0')}</td>
                           <td className="py-3 px-3">{pedido.cliente_nombre}</td>
@@ -123,8 +113,17 @@ const BuscadorPedidos: React.FC = () => {
                                 onClick={() => navigate(`/pedido/${pedido.id}`)} // Navega a la página de detalles del pedido
                               >
                                 👁️</button>
-                              <button className="text-green-500 hover:text-green-700" title="Contactar Cliente">💬</button>
-                              <button className="text-gray-500 hover:text-gray-700" title="Imprimir Orden">🖨️</button>
+                              <button
+                                className="text-green-500 hover:text-green-700"
+                                title="Contactar Cliente"
+                                onClick={() => handleContactClient(pedido)}
+                              >
+                                💬</button>
+                              <button
+                                className="text-gray-500 hover:text-gray-700"
+                                title="Imprimir Orden"
+                                onClick={() => handlePrintOrder(pedido)}
+                              >🖨️</button>
                             </div>
                           </td>
                         </tr>
@@ -137,6 +136,9 @@ const BuscadorPedidos: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Modal de Contacto del Cliente */}
+      <ContactModal contactInfo={contactTarget} onClose={() => setShowContactModal(false)} />
     </div>
   );
 };

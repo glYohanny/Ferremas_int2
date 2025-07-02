@@ -46,6 +46,7 @@ import ContadorDashboardPage from './pages/Personal/Contador/ContadorDashboardPa
 import StockCompletoPage from './pages/Personal/Bodeguero/StockCompletoPage'; // Importar la nueva página
 import VendedorDashboardPage from './pages/Personal/Vendedor/VendedorDashboardPage';
 import PagoFallidoPage from './pages/Clientes/PagoFallidoPage'; // Importar la nueva página
+import CrearPedidoPage from './pages/Personal/Vendedor/CrearPedidoPage'; // Importar la nueva página
 
 
 const NotFoundPage = () => <h2>404 - Página No Encontrada</h2>;
@@ -151,8 +152,12 @@ const AppContent: React.FC<{isAuthenticated: boolean, logout: () => void, authIs
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/pedido-confirmado/:pedidoId" element={<OrderConfirmationPage />} />
             <Route path="/mis-pedidos" element={<MisPedidosPage />} />
-            <Route path="/pedido/:pedidoId" element={<OrderDetailPage />} />
             <Route path="/mi-perfil" element={<UserProfilePage />} />
+          </Route>
+
+          {/* Ruta de Detalle de Pedido para Clientes y Personal */}
+          <Route element={<ProtectedRoute allowedRoles={['Cliente', 'VENDEDOR', 'ADMINISTRADOR', 'BODEGUERO', 'CONTADOR']} />}>
+            <Route path="/pedido/:pedidoId" element={<OrderDetailPage />} />
           </Route>
 
           {/* Rutas Protegidas para Personal (los roles deben coincidir con los valores de user.rol del backend) */}
@@ -186,6 +191,7 @@ const AppContent: React.FC<{isAuthenticated: boolean, logout: () => void, authIs
           </Route>
           <Route element={<ProtectedRoute allowedRoles={['VENDEDOR']} />}>
             <Route path="/personal/vendedor/dashboard" element={<VendedorDashboardPage />} />
+            <Route path="/personal/vendedor/crear-pedido/:clientId" element={<CrearPedidoPage />} /> {/* Nueva ruta para crear pedidos */}
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

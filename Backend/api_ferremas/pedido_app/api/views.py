@@ -160,21 +160,22 @@ class PedidoClienteViewSet(viewsets.ModelViewSet):
             # o levantar un error si es obligatoria.
             # Ejemplo: Asignar la primera sucursal activa. NO RECOMENDADO PARA PRODUCCIÓN SIN REVISIÓN.
             # serializer.validated_data['sucursal_despacho'] = Sucursal.objects.filter(activo=True).first() # Corregido a 'activo' si ese es el campo
+            # Si el serializador no es válido, imprime los errores para depurar
+            if not serializer.is_valid():
+                print("Serializer Errors:", serializer.errors)
+                raise ValidationError(serializer.errors) # Re-lanza la excepción para que el frontend reciba los errores
+
             # if not serializer.validated_data['sucursal_despacho']:
             raise ValidationError({"sucursal_despacho": "Debe especificar una sucursal de despacho."})
 
-        # Asignar cliente o personal creador
+        # Asignar el usuario que crea el pedido.
+        # El cliente se pasa en los datos, pero el personal se asigna aquí.
         user = self.request.user
-        if hasattr(user, 'perfil_cliente') and not serializer.validated_data.get('cliente'): # Asumiendo que el related_name es 'perfil_cliente'
-            serializer.validated_data['cliente'] = user.perfil_cliente
-        elif user.is_staff and not serializer.validated_data.get('creado_por_personal'):
-             serializer.validated_data['creado_por_personal'] = user
-        
-        # Asegurarse de que un cliente no pueda asignarse como 'creado_por_personal'
-        if not user.is_staff and 'creado_por_personal' in serializer.validated_data:
-            del serializer.validated_data['creado_por_personal']
+        save_kwargs = {}
+        if user.is_staff:
+            save_kwargs['creado_por_personal'] = user
 
-        pedido = serializer.save()
+        pedido = serializer.save(**save_kwargs)
         # Si el estado inicial ya implica reducción de stock (ej. PAGADO directamente)
         if pedido.estado in [EstadoPedidoCliente.PAGADO, EstadoPedidoCliente.PROCESANDO]:
             try:

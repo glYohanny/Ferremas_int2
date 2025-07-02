@@ -1,126 +1,170 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import apiClient from '../../services/api';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import api from '../../services/api'; // Assuming you have an api service
 
-// Interfaces para los detalles del pedido (puedes expandirlas según tu PedidoClienteSerializer)
-interface ProductoDetalle {
-  id: number;
-  nombre: string;
-  // imagen_url?: string; // Si tu serializer de producto lo incluye
-}
-
-interface DetallePedidoItem {
-  id: number;
-  producto_detalle: ProductoDetalle;
+// Define interfaces for Pedido and DetallePedido based on your backend serializers
+interface DetallePedido {
+  producto_detalle: {
+    nombre: string;
+  };
   cantidad: number;
-  precio_unitario_venta: string; // O el precio con descuento si lo prefieres mostrar
-  subtotal_linea_display: string;
+  precio_unitario_venta_original: number; // Corrected name for original price
+  precio_unitario_con_descuento: number; // Price after discount
+  subtotal_linea_display: string; // Formatted subtotal
 }
 
-interface PedidoCompleto {
+interface Pedido {
   id: number;
+  cliente_nombre: string;
+  estado: string;
+  total_pedido: number;
   fecha_pedido: string;
-  estado_display: string;
-  total_pedido: string;
+  cliente_email?: string;
+  cliente_telefono?: string;
+  detalles_pedido_cliente: DetallePedido[];
+  // Add other fields from PedidoClienteSerializer as needed
   metodo_envio_display: string;
-  direccion_entrega_texto?: string;
-  comuna_entrega_nombre?: string; // Asumiendo que el serializer puede anidar el nombre de la comuna
-  region_entrega_nombre?: string; // Asumiendo que el serializer puede anidar el nombre de la región
-  telefono_contacto_envio?: string;
-  email_contacto_envio?: string;
-  notas_cliente?: string;
-  detalles_pedido_cliente: DetallePedidoItem[];
-  // Podrías añadir cliente_detalle, sucursal_despacho_detalle, etc.
+  direccion_entrega_texto: string;
+  fecha_entrega_estimada: string;
+  notas_cliente: string;
+  fecha_entregado?: string | null;
 }
+
+const getStatusColor = (estado: string) => {
+  switch (estado) {
+    case 'POR_CONFIRMAR':
+      return 'bg-yellow-200 text-yellow-800';
+    case 'PREPARADO':
+      return 'bg-blue-200 text-blue-800';
+    case 'EN_ESPERA_DE_PAGO':
+      return 'bg-orange-200 text-orange-800';
+    case 'ENTREGADO':
+      return 'bg-green-200 text-green-800';
+    case 'CANCELADO':
+      return 'bg-red-200 text-red-800';
+    default:
+      return 'bg-gray-200 text-gray-800';
+  }
+};
 
 const OrderDetailPage: React.FC = () => {
   const { pedidoId } = useParams<{ pedidoId: string }>();
-  const [pedido, setPedido] = useState<PedidoCompleto | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [pedido, setPedido] = useState<Pedido | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchPedidoDetails = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/pedidos/pedidos-cliente/${pedidoId}/`);
+        setPedido(response.data);
+      } catch (err) {
+        setError('No se pudieron cargar los detalles del pedido.');
+        console.error('Error al cargar detalles del pedido:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (pedidoId) {
-      const fetchPedidoDetalle = async () => {
-        try {
-          setLoading(true);
-          // El endpoint ya debería estar funcionando
-          const response = await apiClient.get<PedidoCompleto>(`/pedidos/pedidos-cliente/${pedidoId}/`);
-          setPedido(response.data);
-          setError(null);
-        } catch (err) {
-          console.error("Error fetching order details:", err);
-          setError("No se pudieron cargar los detalles del pedido. Es posible que no tengas permiso para ver este pedido o que no exista.");
-          setPedido(null);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchPedidoDetalle();
+      fetchPedidoDetails();
     }
   }, [pedidoId]);
 
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const shouldPrint = queryParams.get('print');
+
+    if (shouldPrint === 'true' && pedido) {
+      // Asegurarse de que el DOM esté renderizado antes de imprimir
+      const timer = setTimeout(() => {
+        window.print();
+        // Eliminar el parámetro 'print' de la URL después de imprimir
+        // para evitar que se imprima de nuevo si el usuario recarga la página
+        navigate(location.pathname, { replace: true });
+      }, 500); // Pequeño retraso para asegurar el renderizado
+
+      return () => clearTimeout(timer); // Limpiar el temporizador
+    }
+  }, [location.search, pedido, navigate, location.pathname]);
+
   if (loading) {
-    return <div className="container mx-auto p-4 text-center">Cargando detalles del pedido...</div>;
+    return <div className="text-center p-10">Cargando detalles del pedido...</div>;
   }
 
   if (error) {
-    return <div className="container mx-auto p-4 text-center text-red-500">{error}</div>;
+    return <div className="text-red-500 text-center p-10">{error}</div>;
   }
 
   if (!pedido) {
-    return <div className="container mx-auto p-4 text-center">Pedido no encontrado.</div>;
+    return <div className="text-center p-10">Pedido no encontrado.</div>;
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <h1 className="text-3xl font-bold mb-6">Detalle del Pedido #{pedido.id}</h1>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-4 text-gray-800">Detalles del Pedido #{pedido.id.toString().padStart(3, '0')}</h2>
       
-      <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-3 border-b pb-2">Información General</h2>
-        <p><strong>Fecha del Pedido:</strong> {new Date(pedido.fecha_pedido).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-        <p><strong>Estado:</strong> <span className="font-semibold text-blue-600">{pedido.estado_display}</span></p>
-        <p><strong>Total del Pedido:</strong> <span className="font-bold text-lg">${parseFloat(pedido.total_pedido).toLocaleString('es-CL')}</span></p>
-        <p><strong>Método de Envío:</strong> {pedido.metodo_envio_display}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+          <p className="text-gray-600"><span className="font-semibold">Cliente:</span> {pedido.cliente_nombre}</p>
+          <p className="text-gray-600"><span className="font-semibold">Estado:</span> <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(pedido.estado)}`}>{pedido.estado.replace(/_/g, ' ')}</span></p>
+          <p className="text-gray-600"><span className="font-semibold">Fecha Pedido:</span> {new Date(pedido.fecha_pedido).toLocaleDateString()}</p>
+          {pedido.fecha_entrega_estimada && <p className="text-gray-600"><span className="font-semibold">Fecha Entrega Estimada:</span> {new Date(pedido.fecha_entrega_estimada).toLocaleDateString()}</p>}
+          {pedido.fecha_entregado && <p className="text-gray-600"><span className="font-semibold">Fecha Entregado:</span> {new Date(pedido.fecha_entregado).toLocaleDateString()}</p>}
+        </div>
+        <div>
+          <p className="text-gray-600"><span className="font-semibold">Método de Envío:</span> {pedido.metodo_envio_display}</p>
+          {pedido.direccion_entrega_texto && <p className="text-gray-600"><span className="font-semibold">Dirección de Entrega:</span> {pedido.direccion_entrega_texto}</p>}
+          {pedido.notas_cliente && <p className="text-gray-600"><span className="font-semibold">Notas del Cliente:</span> {pedido.notas_cliente}</p>}
+          <p className="text-gray-600 text-xl font-bold mt-2"><span className="font-semibold">Total Pedido:</span> ${pedido.total_pedido.toLocaleString('es-CL')}</p>
+        </div>
       </div>
 
-      {pedido.metodo_envio_display === 'Despacho a Domicilio' && (
-        <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-3 border-b pb-2">Información de Despacho</h2>
-          <p><strong>Dirección:</strong> {pedido.direccion_entrega_texto || 'No especificada'}</p>
-          {/* <p><strong>Comuna:</strong> {pedido.comuna_entrega_nombre || 'No especificada'}</p> */}
-          {/* <p><strong>Región:</strong> {pedido.region_entrega_nombre || 'No especificada'}</p> */}
-          <p><strong>Teléfono de Contacto:</strong> {pedido.telefono_contacto_envio || 'No especificado'}</p>
-          <p><strong>Email de Contacto:</strong> {pedido.email_contacto_envio || 'No especificado'}</p>
-        </div>
-      )}
-
-      <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-3 border-b pb-2">Artículos del Pedido</h2>
-        <ul className="divide-y divide-gray-200">
-          {pedido.detalles_pedido_cliente.map(item => (
-            <li key={item.id} className="py-3">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium">{item.producto_detalle.nombre} <span className="text-sm text-gray-500">x {item.cantidad}</span></p>
-                  <p className="text-sm text-gray-600">Precio Unitario: ${parseFloat(item.precio_unitario_venta).toLocaleString('es-CL')}</p>
-                </div>
-                <p className="font-semibold">${parseFloat(item.subtotal_linea_display).toLocaleString('es-CL')}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <h3 className="text-xl font-semibold mb-3 text-gray-700">Productos</h3>
+      <div className="overflow-x-auto mb-6">
+        <table className="min-w-full bg-white border border-gray-200">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="py-2 px-4 border-b text-left">Producto</th>
+              <th className="py-2 px-4 border-b text-center">Cantidad</th>
+              <th className="py-2 px-4 border-b text-right">Precio Unitario</th>
+              <th className="py-2 px-4 border-b text-right">Descuento Línea</th>
+              <th className="py-2 px-4 border-b text-right">Subtotal Línea</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pedido.detalles_pedido_cliente.map((item, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="py-2 px-4 border-b">{item.producto_detalle.nombre}</td>
+                <td className="py-2 px-4 border-b text-center">{item.cantidad}</td>
+                <td className="py-2 px-4 border-b text-right">${item.precio_unitario_venta_original.toLocaleString('es-CL')}</td>
+                <td className="py-2 px-4 border-b text-right">
+                  {item.precio_unitario_venta_original !== item.precio_unitario_con_descuento ?
+                    `$${(item.precio_unitario_venta_original - item.precio_unitario_con_descuento).toLocaleString('es-CL')}` : 'N/A'}
+                </td>
+                <td className="py-2 px-4 border-b text-right">${parseFloat(item.subtotal_linea_display).toLocaleString('es-CL')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {pedido.notas_cliente && (
-        <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-3 border-b pb-2">Notas del Cliente</h2>
-          <p className="text-gray-700 whitespace-pre-line">{pedido.notas_cliente}</p>
-        </div>
-      )}
-
-      <div className="text-center mt-8">
-        <Link to="/mis-pedidos" className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors duration-200">Volver a Mis Pedidos</Link>
+      <div className="flex justify-end gap-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600 transition-colors print:hidden"
+        >
+          Volver
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-colors print:hidden"
+        >
+          Imprimir Orden
+        </button>
       </div>
     </div>
   );

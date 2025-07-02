@@ -38,30 +38,27 @@ const ProductDetailPage: React.FC = () => {
   }, [idProducto]);
 
   // --- Nuevas adiciones para el carrito ---
-  const { addItem } = useCart(); // Obtén la función addItem del carrito
+  const { addToCart } = useCart(); // Corregido: Obtén la función addToCart del carrito
   const [quantity, setQuantity] = useState(1); // Estado para la cantidad a añadir
 
   const handleAddToCart = () => {
-    if (product) {      
-      // Llama a la función addItem del contexto del carrito
-      // Usa precio_final para el carrito. Asegúrate de que sea un número.
-      const priceForCart = parseFloat(product.precio_final); 
-      // Si product.imagen no existe, usa un placeholder para el carrito también.
-      const imageForCart = product.imagen || 'https://via.placeholder.com/150.png?text=En+Carrito'; 
-
+    if (product) {
+      const priceForCart = parseFloat(product.precio_final);
       if (isNaN(priceForCart)) {
         console.error("Error: El precio del producto no es un número válido.", product);
         alert("Error: No se pudo añadir el producto al carrito debido a un problema con el precio.");
         return;
       }
-      
-      // Pasa el producto al carrito. Considera qué precio quieres que el carrito maneje internamente.
-      // Aquí usamos precio_final como 'precio' para el objeto del carrito.
-      addItem({ 
-        ...product, 
-        precio: priceForCart, // El precio que usará el carrito
-        imagen_url: imageForCart 
-      }, quantity);
+
+      const imageForCart = product.imagen || 'https://via.placeholder.com/150.png?text=En+Carrito';
+
+      addToCart({
+        id: product.id,
+        name: product.nombre,
+        price: priceForCart,
+        quantity: quantity,
+        imagen_url: imageForCart,
+      });
       alert(`${quantity} x ${product.nombre} añadido al carrito!`);
     }
   };

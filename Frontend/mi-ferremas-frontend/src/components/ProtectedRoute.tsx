@@ -35,10 +35,23 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
   const userTipoPerfil = user?.tipo_perfil; // 'Cliente', 'Personal', 'Admin', 'Usuario Base'
   const userStaffRole = user?.rol; // 'BODEGUERO', 'ADMINISTRADOR', etc. (viene del backend)
   const isUserStaffFlag = user?.is_staff;
+  const hasClientProfile = !!user?.perfil_cliente;
 
-  console.log('[ProtectedRoute] User tipo_perfil:', userTipoPerfil, 'User rol:', userStaffRole, 'User is_staff:', isUserStaffFlag);
+  // Lógica para inferir el tipo de perfil si no viene explícitamente del backend.
+  // Esto hace que la autorización sea más robusta.
+  let effectiveTipoPerfil = userTipoPerfil;
+  if (!effectiveTipoPerfil) {
+    if (hasClientProfile) {
+      effectiveTipoPerfil = 'Cliente';
+    } else if (userStaffRole || isUserStaffFlag) {
+      // Asume 'Personal' o 'Admin' si tiene rol o es staff, pero no perfil de cliente.
+      effectiveTipoPerfil = 'Personal';
+    }
+  }
 
-  if (userTipoPerfil && allowedRoles.includes(userTipoPerfil as any)) {
+  console.log('[ProtectedRoute] User tipo_perfil:', userTipoPerfil, 'User rol:', userStaffRole, 'User is_staff:', isUserStaffFlag, 'Effective tipo_perfil:', effectiveTipoPerfil);
+
+  if (effectiveTipoPerfil && allowedRoles.includes(effectiveTipoPerfil as any)) {
     // Autorizado por tipo de perfil general (ej. 'Cliente', 'Personal')
     isAuthorized = true;
   }
@@ -59,7 +72,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
     return <Outlet />; // El usuario tiene el rol permitido, renderiza el contenido de la ruta hija
   } else {
     // El usuario está autenticado pero no tiene el rol permitido
-    console.warn(`Acceso denegado a ${location.pathname}. User tipo_perfil: ${userTipoPerfil}, User rol: ${userStaffRole}, Roles permitidos: ${allowedRoles.join(', ')}`);
+    console.warn(`Acceso denegado a ${location.pathname}. User tipo_perfil: ${userTipoPerfil} (Efectivo: ${effectiveTipoPerfil}), User rol: ${userStaffRole}, Roles permitidos: ${allowedRoles.join(', ')}`);
     console.log('[ProtectedRoute] Rol NO permitido. Redirigiendo a /acceso-denegado para:', location.pathname); // NUEVO LOG
     return <Navigate to="/acceso-denegado" replace />; 
   }

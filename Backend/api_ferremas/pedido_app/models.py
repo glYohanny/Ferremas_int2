@@ -124,6 +124,7 @@ class DetallePedidoProveedor(models.Model):
 # --- Modelos para Pedido de Cliente ---
 
 class EstadoPedidoCliente(models.TextChoices):
+    POR_CONFIRMAR = 'POR_CONFIRMAR', 'Por Confirmar'
     PENDIENTE = 'PENDIENTE', 'Pendiente'
     PROCESANDO = 'PROCESANDO', 'Procesando'
     PENDIENTE_REABASTECIMIENTO = 'PENDIENTE_REABASTECIMIENTO', 'Pendiente de Reabastecimiento' # Nuevo estado

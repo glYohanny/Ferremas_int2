@@ -7,9 +7,15 @@ import { useAuth } from '../../contexts/AuthContext';
 interface PedidoEnLista {
   id: number;
   fecha_pedido: string;
+  estado: string;
   estado_display: string;
-  total_pedido: string;
+  total_pedido: number; // El serializer lo envía como número
   // Puedes añadir más campos si los necesitas para la vista de lista
+}
+
+// Interfaz para la respuesta paginada de la API
+interface PaginatedPedidosResponse {
+  results: PedidoEnLista[];
 }
 
 const MisPedidosPage: React.FC = () => {
@@ -24,8 +30,8 @@ const MisPedidosPage: React.FC = () => {
         try {
           setLoading(true);
           // Tu PedidoClienteViewSet ya debería filtrar por el cliente autenticado
-          const response = await apiClient.get<PedidoEnLista[]>('/pedidos/pedidos-cliente/');
-          setPedidos(response.data);
+          const response = await apiClient.get<PaginatedPedidosResponse>('/pedidos/pedidos-cliente/');
+          setPedidos(response.data.results); // Corregido para acceder a la propiedad 'results'
           setError(null);
         } catch (err) {
           console.error("Error fetching orders:", err);
@@ -72,7 +78,7 @@ const MisPedidosPage: React.FC = () => {
                     <p className="text-sm text-gray-500">{new Date(pedido.fecha_pedido).toLocaleDateString('es-CL')}</p>
                   </div>
                   <p className="text-gray-700">Estado: <span className="font-medium">{pedido.estado_display}</span></p>
-                  <p className="text-gray-700">Total: <span className="font-medium">${parseFloat(pedido.total_pedido).toLocaleString('es-CL')}</span></p>
+                  <p className="text-gray-700">Total: <span className="font-medium">${pedido.total_pedido.toLocaleString('es-CL')}</span></p>
                 </Link>
               </li>
             ))}

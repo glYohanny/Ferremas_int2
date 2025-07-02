@@ -1,18 +1,63 @@
 from rest_framework import serializers
-from ..models import Usuario, Cliente, Personal
+from ..models import Usuario, Cliente, Personal, DireccionCliente
+from sucursal_app.api.serializers import SucursalSerializer # Importar el serializer de Sucursal
 from django.contrib.auth.password_validation import validate_password # type: ignore
 from django.db import transaction
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 
-class UsuarioSerializer(serializers.ModelSerializer):
+class SimpleClienteProfileSerializer(serializers.ModelSerializer):
     """
-    Serializer para el modelo Usuario.
-    Usado para mostrar información del usuario.
+    Serializer simple para el perfil de cliente, para ser anidado en UsuarioSerializer.
     """
     class Meta:
+        model = Cliente
+        fields = ['id', 'rut', 'num_telefono']
+
+class PerfilPersonalSerializer(serializers.ModelSerializer):
+    """
+    Serializer para el perfil de personal, incluyendo los detalles de la sucursal.
+    """
+    # Usamos el SucursalSerializer para anidar la información completa de la sucursal.
+    sucursal = SucursalSerializer(read_only=True)
+
+    class Meta:
+        model = Personal
+        fields = ['id', 'rol', 'sucursal']
+
+class UsuarioSerializer(serializers.ModelSerializer):
+    """
+    Serializer principal para el modelo Usuario.
+    Ahora incluye el perfil de personal con sus detalles anidados.
+    """
+    rol = serializers.CharField(source='perfil_personal.rol', read_only=True, allow_null=True)
+    rol_display = serializers.CharField(source='get_rol_display', read_only=True)
+    tipo_perfil = serializers.CharField(source='get_tipo_perfil', read_only=True)
+    perfil_personal = PerfilPersonalSerializer(read_only=True)
+    perfil_cliente = SimpleClienteProfileSerializer(read_only=True, allow_null=True)
+
+    class Meta:
         model = Usuario
-        fields = ['id', 'email', 'username', 'first_name', 'last_name', 'is_active', 'is_staff']
-    read_only_fields = ['is_staff'] # Permitimos que is_active sea modificable por un admin
+        fields = [
+            'id', 'email', 'username', 'first_name', 'last_name',
+            'is_staff', 'is_active',
+            'tipo_perfil', 'rol', 'rol_display',
+            'perfil_personal', 'perfil_cliente'
+        ]
+        read_only_fields = ['is_staff', 'is_active', 'perfil_personal', 'perfil_cliente', 'rol', 'rol_display', 'tipo_perfil']
+
+class DireccionClienteSerializer(serializers.ModelSerializer):
+    """
+    Serializer para el modelo DireccionCliente.
+    """
+    sucursal_favorita_nombre = serializers.CharField(source='sucursal_favorita.nombre', read_only=True)
+
+    class Meta:
+        model = DireccionCliente
+        fields = [
+            'id', 'alias', 'direccion_calle_numero', 'informacion_adicional',
+            'es_principal', 'sucursal_favorita', 'sucursal_favorita_nombre'
+        ]
+        read_only_fields = ['id', 'sucursal_favorita_nombre']
 
 class ClienteSerializer(serializers.ModelSerializer):
     """
@@ -20,11 +65,12 @@ class ClienteSerializer(serializers.ModelSerializer):
     Incluye información del Usuario anidada.
     """
     usuario = UsuarioSerializer(read_only=True) # Para mostrar datos del usuario
+    direcciones = DireccionClienteSerializer(many=True, read_only=True)
 
     class Meta:
         model = Cliente
         # Añadir 'rut' para que se pueda ver y potencialmente actualizar
-        fields = ['id', 'usuario', 'rut', 'direccion_calle_numero', 'num_telefono', 'fecha_creacion_perfil']
+        fields = ['id', 'usuario', 'rut', 'num_telefono', 'fecha_creacion_perfil', 'direcciones']
         read_only_fields = ['fecha_creacion_perfil']
 
 class ClienteRegistrationSerializer(serializers.ModelSerializer):
@@ -38,17 +84,17 @@ class ClienteRegistrationSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(required=True, max_length=150)
     last_name = serializers.CharField(required=True, max_length=150)
     # Declarar explícitamente los campos del perfil Cliente
-    rut = serializers.CharField(required=True, max_length=12) # Añadido campo RUT
-    direccion_calle_numero = serializers.CharField(required=True, max_length=255)
+    rut = serializers.CharField(required=True, max_length=12)
+    # Campos para la primera dirección del cliente
+    direccion_calle_numero = serializers.CharField(required=True, max_length=255, write_only=True)
+    direccion_alias = serializers.CharField(required=False, max_length=50, write_only=True, default="Principal")
     num_telefono = serializers.CharField(required=False, max_length=20, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Usuario # El serializer principal se basa en Usuario para crear la cuenta
-        fields = ['email', 'username', 'first_name', 'last_name', 'password', 'password2', 'rut',
-                  'direccion_calle_numero', 'num_telefono'] # Ahora estos campos están definidos arriba
+        fields = ['email', 'username', 'first_name', 'last_name', 'password', 'password2', 'rut', 'num_telefono', 'direccion_calle_numero', 'direccion_alias']
         extra_kwargs = {
             'username': {'required': True}, # Aunque el email es el USERNAME_FIELD, username sigue siendo requerido por AbstractUser
-            # No es necesario 'direccion_calle_numero': {'required': True} aquí si se define arriba con required=True
         }
 
     def validate(self, attrs):
@@ -58,10 +104,15 @@ class ClienteRegistrationSerializer(serializers.ModelSerializer):
 
     @transaction.atomic # Asegura que ambas creaciones (Usuario y Cliente) sean exitosas o ninguna
     def create(self, validated_data):
+        # Extraer datos para el Cliente y su primera Dirección
         cliente_data = {
-            'rut': validated_data.pop('rut'), # Extraer RUT para el Cliente
+            'rut': validated_data.pop('rut'),
+            'num_telefono': validated_data.pop('num_telefono', None)
+        }
+        direccion_data = {
             'direccion_calle_numero': validated_data.pop('direccion_calle_numero'),
-            'num_telefono': validated_data.pop('num_telefono', None) # num_telefono es opcional
+            'alias': validated_data.pop('direccion_alias', 'Principal'),
+            'es_principal': True # La primera dirección creada en el registro es la principal
         }
         
         user = Usuario.objects.create_user(
@@ -76,7 +127,11 @@ class ClienteRegistrationSerializer(serializers.ModelSerializer):
         user.is_superuser = False
         user.save()
 
-        Cliente.objects.create(usuario=user, **cliente_data)
+        # Crear el perfil del Cliente
+        cliente_instance = Cliente.objects.create(usuario=user, **cliente_data)
+
+        # Crear la primera dirección del cliente, asociada a su perfil
+        DireccionCliente.objects.create(cliente=cliente_instance, **direccion_data)
         return user 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -106,22 +161,6 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError({"new_password": "Las nuevas contraseñas no coinciden."})
         return attrs
 
-class PersonalSerializer(serializers.ModelSerializer):
-    """
-    Serializer para leer datos del Personal, incluyendo información del Usuario.
-    """
-    usuario = UsuarioSerializer(read_only=True)
-    rol_display = serializers.CharField(source='get_rol_display', read_only=True) # Para mostrar el label del rol
-    tipo_perfil = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Personal
-        fields = ['id', 'usuario', 'rol', 'rol_display', 'sucursal', 'bodega', 'tipo_perfil']
-        # rol se incluye para poder enviarlo al crear/actualizar, rol_display es solo para lectura.
-
-    def get_tipo_perfil(self, obj: Personal) -> str:
-        return 'Personal'
-
 class PersonalCreateUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer para crear y actualizar perfiles de Personal.
@@ -129,7 +168,7 @@ class PersonalCreateUpdateSerializer(serializers.ModelSerializer):
     """
     # For representation (output)
     usuario = UsuarioSerializer(read_only=True)
-    rol_display = serializers.CharField(source='get_rol_display', read_only=True)
+    rol_display = serializers.CharField(source='get_rol_display', read_only=True) # Re-declarar para que aparezca en la salida
     tipo_perfil = serializers.SerializerMethodField(read_only=True)
 
     # For writing (input) - these are handled in create/update methods
@@ -145,7 +184,7 @@ class PersonalCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Personal
         fields = [
-            'id', # From Personal model
+            'id',
             'usuario', # For representing the nested Usuario
             'rol', 'rol_display', # From Personal model / method
             'sucursal', 'bodega', # From Personal model
@@ -153,6 +192,11 @@ class PersonalCreateUpdateSerializer(serializers.ModelSerializer):
             # Write-only fields for user creation/update
             'email', 'username', 'first_name', 'last_name', 'password', 'is_active',
         ]
+        # Los campos de solo lectura no necesitan estar en la lista de campos si no se usan para la escritura.
+        # Sin embargo, para la representación, es útil tenerlos.
+        # Para evitar conflictos, los campos de solo escritura se manejan en los métodos create/update.
+        read_only_fields = ('id', 'usuario', 'rol_display', 'tipo_perfil')
+
 
     def get_tipo_perfil(self, obj: Personal) -> str:
         return 'Personal'
@@ -219,6 +263,19 @@ class PersonalCreateUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+class PersonalSerializer(serializers.ModelSerializer):
+    """
+    Serializer para leer datos del Personal, incluyendo información del Usuario.
+    """
+    usuario = UsuarioSerializer(read_only=True)
+    rol_display = serializers.CharField(source='get_rol_display', read_only=True) # Para mostrar el label del rol
+    tipo_perfil = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Personal
+        fields = ['id', 'usuario', 'rol', 'rol_display', 'sucursal', 'bodega', 'tipo_perfil']
+    def get_tipo_perfil(self, obj: Personal) -> str:
+        return 'Personal'
 class UsuarioListSerializer(serializers.ModelSerializer):
     """
     Serializer para listar usuarios con información básica y tipo de perfil.
@@ -248,6 +305,7 @@ class UserProfileDataSerializer(serializers.ModelSerializer):
     last_name = serializers.CharField(source='usuario.last_name', read_only=True)
     username = serializers.CharField(source='usuario.username', read_only=True)
     tipo_perfil = serializers.SerializerMethodField()
+    direcciones = DireccionClienteSerializer(many=True, read_only=True)
 
     class Meta:
         model = Cliente # El serializer se basa en el modelo Cliente
@@ -258,9 +316,9 @@ class UserProfileDataSerializer(serializers.ModelSerializer):
             'last_name', 
             'username',
             'tipo_perfil', # Añadido
-            'rut', # Asegúrate de que 'rut' esté en tu modelo Cliente si lo necesitas aquí
-            'direccion_calle_numero', 
+            'rut',
             'num_telefono',
+            'direcciones',
             # 'fecha_nacimiento', # Descomenta si lo tienes en el modelo Cliente y quieres incluirlo
         ]
 

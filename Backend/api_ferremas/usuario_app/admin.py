@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Personal, Cliente
+from .models import Usuario, Personal, Cliente, DireccionCliente
 
 # Register your models here.
 
@@ -27,7 +27,6 @@ class PerfilClienteInline(admin.StackedInline):
     verbose_name_plural = 'Perfil de Cliente'
     fk_name = 'usuario'
     # Campos a mostrar en el inline
-    fields = ('rut', 'direccion_calle_numero', 'num_telefono')
 
 
 @admin.register(Usuario)
@@ -83,6 +82,15 @@ class PersonalAdmin(admin.ModelAdmin):
     get_usuario_email.short_description = 'Email del Usuario'
     get_usuario_email.admin_order_field = 'usuario__email'
 
+class DireccionClienteInline(admin.TabularInline):
+    """
+    Permite editar las direcciones de un cliente de forma tabular
+    directamente desde la vista de Cliente.
+    """
+    model = DireccionCliente
+    extra = 1 # Muestra un campo vacío para añadir una nueva dirección
+    fields = ('alias', 'direccion_calle_numero', 'informacion_adicional', 'es_principal', 'sucursal_favorita')
+    autocomplete_fields = ('sucursal_favorita',)
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
@@ -91,9 +99,9 @@ class ClienteAdmin(admin.ModelAdmin):
     """
     list_display = ('usuario', 'get_usuario_email', 'rut', 'get_usuario_nombre_completo', 'num_telefono', 'fecha_creacion_perfil')
     search_fields = ('usuario__email', 'usuario__username', 'usuario__first_name', 'usuario__last_name', 'rut', 'num_telefono')
-    readonly_fields = ('fecha_creacion_perfil',)
-    fields = ('usuario', 'rut', 'direccion_calle_numero', 'num_telefono')
+    readonly_fields = ('fecha_creacion_perfil',)    
     autocomplete_fields = ['usuario']
+    inlines = [DireccionClienteInline]
 
     def get_usuario_email(self, obj):
         return obj.usuario.email if obj.usuario else 'N/A'
@@ -106,4 +114,3 @@ class ClienteAdmin(admin.ModelAdmin):
         return 'N/A'
     get_usuario_nombre_completo.short_description = 'Nombre Completo'
     get_usuario_nombre_completo.admin_order_field = 'usuario__last_name'
-

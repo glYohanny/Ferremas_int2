@@ -1,17 +1,35 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import apiClient from '../services/api'; 
+import { Sucursal } from '../services/productService'; // Importa la interfaz Sucursal
 
 // Interfaz para el objeto User (ajusta según los datos que devuelve tu backend)
+// Interfaz para el perfil personal (para usuarios STAFF)
+interface PerfilPersonal {
+  id: number;
+  rol: string; // 'BODEGUERO', 'ADMINISTRADOR', 'VENDEDOR', 'CONTADOR'
+  sucursal?: Sucursal; // La sucursal a la que pertenece el personal
+  // Otros campos del perfil personal si los hay
+}
+
+interface SimpleClienteProfile {
+  id: number;
+  rut?: string;
+  num_telefono?: string;
+  // Añade otros campos si los necesitas en el frontend
+}
+
 export interface User {
   id: number;
   email: string;
   username: string;
   first_name: string;
   last_name: string;
-  tipo_perfil?: 'Cliente' | 'Personal' | 'Admin' | 'Usuario Base'; // Clave para los roles
-  is_staff?: boolean; // Alternativa o complemento para roles
-  rol?: string; // Para roles específicos de personal: 'BODEGUERO', 'ADMINISTRADOR', 'VENDEDOR', 'CONTADOR'
+  tipo_perfil?: 'Cliente' | 'Personal' | 'Admin' | 'Usuario Base';
+  is_staff?: boolean;
+  rol?: string;
   rol_display?: string; // Nombre legible del rol
+  perfil_personal?: PerfilPersonal; // Añadir el perfil personal para usuarios STAFF
+  perfil_cliente?: SimpleClienteProfile; // Añadir el perfil de cliente
 }
 
 interface AuthContextType {

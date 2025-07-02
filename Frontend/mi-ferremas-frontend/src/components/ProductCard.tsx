@@ -2,6 +2,7 @@ import React from 'react';
 import { Product } from '../services/productService'; // Importa la interfaz
 import { Link } from 'react-router-dom'; // Importa Link
 import { useSucursal } from '../contexts/SucursalContext'; // Importar hook de sucursal
+import { useCart } from '../contexts/CartContext'; // Importar hook de carrito
 
 interface ProductCardProps {
   product: Product;
@@ -9,6 +10,7 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { selectedSucursal, sucursales } = useSucursal();
+  const { addToCart } = useCart(); // Obtener la función addToCart del contexto
 
   let stockDisplayInfo = { text: "Seleccione sucursal para ver stock", className: "text-gray-500" };
 
@@ -108,10 +110,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <button 
             onClick={(e) => { 
               e.preventDefault(); // Prevenir navegación si el botón está dentro de Link
-              // Aquí iría la lógica para añadir al carrito, por ejemplo:
-              // addItem(product, 1); 
-              // alert(`${product.nombre} añadido al carrito (funcionalidad pendiente)`);
-              console.log("Añadir al carrito (funcionalidad pendiente):", product.nombre);
+              const priceToAdd = product.precio_final ? parseFloat(product.precio_final) : parseFloat(product.precio_original);
+              addToCart({
+                id: product.id,
+                name: product.nombre,
+                price: priceToAdd,
+                quantity: 1, // Añadir 1 unidad por defecto
+              });
+              alert(`${product.nombre} añadido al carrito.`);
             }}
             className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors duration-300 text-sm"
           >

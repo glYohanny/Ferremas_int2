@@ -1,8 +1,7 @@
 import React from 'react';
-import PedidosActivosWidget from '../../../components/Personal/Vendedor/PedidosActivosWidget';
+import BuscadorPedidos from '../../../components/Personal/Vendedor/BuscadorPedidos';
 import ClientesFrecuentesWidget from '../../../components/Personal/Vendedor/ClientesFrecuentesWidget';
 import CatalogoProductosWidget from '../../../components/Personal/Vendedor/CatalogoProductosWidget';
-import BuscadorPedidos from '../../../components/Personal/Vendedor/BuscadorPedidos';
 
 const VendedorDashboardPage: React.FC = () => {
   return (
@@ -12,15 +11,10 @@ const VendedorDashboardPage: React.FC = () => {
         <p className="text-gray-600">Bienvenido al panel de ventas. Gestiona pedidos, clientes y productos.</p>
       </header>
 
-      {/* Buscador de Pedidos */}
-      <div className="mb-8">
-        <BuscadorPedidos />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Columna Principal - Pedidos Activos */}
+        {/* Columna Principal - Buscador de Pedidos */}
         <div className="lg:col-span-2">
-          <PedidosActivosWidget />
+          <BuscadorPedidos />
         </div>
 
         {/* Columna Lateral - Clientes y Catálogo */}
