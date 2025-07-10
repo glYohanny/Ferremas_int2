@@ -116,7 +116,7 @@ def main():
     
     # 5. Ejecutar pruebas específicas de pedidos
     results['pedido_tests'] = run_command(
-        "python manage.py test pedido_app.tests.test_pedido_proveedor --verbosity=2",
+        "python manage.py test pedido_app.tests --verbosity=2",
         "Pruebas específicas de pedidos a proveedor"
     )
     

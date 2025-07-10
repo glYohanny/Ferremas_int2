@@ -1,0 +1,54 @@
+# Django y DRF
+Django>=4.2.0,<5.0.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.0.0
+django-filter>=23.0
+
+# Autenticación
+djangorestframework-simplejwt>=5.2.0
+
+# Base de datos
+psycopg2-binary>=2.9.0  # Para PostgreSQL
+# sqlite3 viene incluido con Python
+
+# Validación y serialización
+Pillow>=9.5.0  # Para manejo de imágenes
+
+# Utilidades
+python-decouple>=3.8  # Para variables de entorno
+django-extensions>=3.2.0
+
+# Pruebas y desarrollo
+coverage>=7.2.0
+pytest>=7.3.0
+pytest-django>=4.5.0
+
+# Integración de pagos (Webpay)
+requests>=2.31.0
+
+# Filtros avanzados
+django-filter>=23.0
+
+# Paginación personalizada
+django-pagination>=0.3.0
+
+# Para desarrollo
+django-debug-toolbar>=4.0.0
+
+# Seguridad
+django-csp>=3.7
+
+# Internacionalización
+django-modeltranslation>=0.18.0
+
+# Cache
+redis>=4.5.0
+django-redis>=5.2.0
+
+# Celery para tareas asíncronas (opcional)
+celery>=5.3.0
+django-celery-beat>=2.5.0
+
+# Logging
+structlog>=23.1.0
+django-structlog>=5.0.0 

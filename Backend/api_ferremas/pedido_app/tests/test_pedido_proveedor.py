@@ -138,7 +138,7 @@ class PedidoProveedorTestCase(TestCase):
             creado_por=self.user
         )
         
-        expected_str = f"Pedido #{pedido.id} a {self.proveedor.razon_social} para Bodega {self.bodega.nombre} (Solicitado)"
+        expected_str = f"Pedido #{pedido.id} a {self.proveedor.razon_social} para Bodega {self.bodega.tipo_bodega.tipo} - {self.bodega.sucursal.nombre} (Solicitado)"
         self.assertEqual(str(pedido), expected_str)
 
 
