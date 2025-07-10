@@ -295,6 +295,17 @@ class PedidoClienteViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(pedido)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def detalle_completo(self, request, pk=None):
+        """
+        Endpoint para obtener los detalles completos de un pedido incluyendo descuentos.
+        Usa el serializer completo en lugar del serializer de lista.
+        """
+        pedido = self.get_object()
+        # Usar el serializer completo para obtener todos los detalles
+        serializer = PedidoClienteSerializer(pedido, context={'request': request})
+        return Response(serializer.data)
+
 
 class HistorialEntregasViewSet(viewsets.ReadOnlyModelViewSet):
     """

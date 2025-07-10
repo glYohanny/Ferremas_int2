@@ -20,7 +20,7 @@ class PedidoClienteListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PedidoCliente
-        fields = ['id', 'cliente_nombre', 'cliente_email', 'cliente_telefono', 'estado', 'estado_display', 'total_pedido', 'fecha_pedido']
+        fields = ['id', 'cliente_nombre', 'cliente_email', 'cliente_telefono', 'estado', 'estado_display', 'subtotal', 'descuento_total', 'total_pedido', 'fecha_pedido']
 
 
 class DetallePedidoProveedorSerializer(serializers.ModelSerializer):
@@ -110,7 +110,7 @@ class DetallePedidoClienteSerializer(serializers.ModelSerializer):
     producto_detalle = ProductoSerializer(source='producto', read_only=True)
     subtotal_linea_display = serializers.DecimalField(source='subtotal_linea_cliente', max_digits=10, decimal_places=2, read_only=True)
     # Mostrar el precio unitario original y el con descuento
-    precio_unitario_venta_original = serializers.DecimalField(source='precio_unitario_venta', max_digits=10, decimal_places=2, read_only=True)
+    precio_unitario_venta_original = serializers.SerializerMethodField()
     
     # Para operaciones de escritura, necesitamos aceptar el ID del producto y la cantidad.
     # El campo 'producto' debe ser un PrimaryKeyRelatedField para aceptar el ID del producto.
@@ -135,6 +135,10 @@ class DetallePedidoClienteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('pedido_cliente', 'precio_unitario_con_descuento', 'descuento_total_linea', 'subtotal_linea_display', 'precio_unitario_venta_original')
 
+    def get_precio_unitario_venta_original(self, obj):
+        """Obtiene el precio original del producto sin descuentos"""
+        return obj.producto.precio
+
 class PedidoClienteSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.CharField(source='cliente.usuario.get_full_name', read_only=True)
     cliente_detalle = ClienteSerializer(source='cliente', read_only=True)
@@ -142,6 +146,7 @@ class PedidoClienteSerializer(serializers.ModelSerializer):
     sucursal_despacho_detalle = SucursalSerializer(source='sucursal_despacho', read_only=True, allow_null=True)
     bodeguero_asignado_detalle = UsuarioSerializer(source='bodeguero_asignado', read_only=True, allow_null=True) # Para mostrar info del bodeguero
     detalles_pedido_cliente = DetallePedidoClienteSerializer(many=True)
+    pagos = serializers.SerializerMethodField() # Incluir información de pagos
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     metodo_envio_display = serializers.CharField(source='get_metodo_envio_display', read_only=True)
     estado_preparacion_display = serializers.CharField(source='get_estado_preparacion_display', read_only=True)
@@ -160,6 +165,7 @@ class PedidoClienteSerializer(serializers.ModelSerializer):
             'fecha_entrega_estimada', 'fecha_entregado', 'notas_cliente', # 'token_webpay' eliminado
             'creado_por_personal', 'creado_por_personal_detalle',
             'fecha_creacion', 'fecha_actualizacion', 'detalles_pedido_cliente',
+            'pagos', # Incluir información de pagos
         ]
         read_only_fields = (
             'fecha_pedido', 'fecha_creacion', 'fecha_actualizacion',
@@ -180,12 +186,20 @@ class PedidoClienteSerializer(serializers.ModelSerializer):
         for detalle_data in detalles_data:
             producto_instance = detalle_data['producto']
             # El backend determina el precio para evitar manipulaciones desde el frontend
-            precio_unitario_venta, _ = producto_instance.precio_final_con_info_promo
+            precio_final, promocion_aplicada = producto_instance.precio_final_con_info_promo
+            precio_original = producto_instance.precio
+            
+            # Calcular descuentos
+            precio_con_descuento = precio_final  # Este ya es el precio con descuento
+            descuento_total_linea = (precio_original - precio_con_descuento) * detalle_data['cantidad']
+            
             DetallePedidoCliente.objects.create(
                 pedido_cliente=pedido,
                 producto=producto_instance,
                 cantidad=detalle_data['cantidad'],
-                precio_unitario_venta=precio_unitario_venta
+                precio_unitario_venta=precio_original,  # Guardar el precio original
+                precio_unitario_con_descuento=precio_con_descuento,  # Guardar el precio con descuento
+                descuento_total_linea=descuento_total_linea
             )
         pedido.calcular_totales_cliente()
         return pedido
@@ -197,12 +211,33 @@ class PedidoClienteSerializer(serializers.ModelSerializer):
             instance.detalles_pedido_cliente.all().delete() # Simplificado
             for detalle_data in detalles_data:
                 producto_instance = detalle_data['producto']
-                precio_unitario_venta, _ = producto_instance.precio_final_con_info_promo
+                precio_final, promocion_aplicada = producto_instance.precio_final_con_info_promo
+                precio_original = producto_instance.precio
+                
+                # Calcular descuentos
+                precio_con_descuento = precio_final
+                descuento_total_linea = (precio_original - precio_con_descuento) * detalle_data['cantidad']
+                
                 DetallePedidoCliente.objects.create(
                     pedido_cliente=instance,
                     producto=producto_instance,
                     cantidad=detalle_data['cantidad'],
-                    precio_unitario_venta=precio_unitario_venta
+                    precio_unitario_venta=precio_original,  # Guardar el precio original
+                    precio_unitario_con_descuento=precio_con_descuento,  # Guardar el precio con descuento
+                    descuento_total_linea=descuento_total_linea
                 )
         instance.calcular_totales_cliente()
         return instance
+
+    def get_pagos(self, obj):
+        """Obtiene la información de pagos del pedido"""
+        pagos = obj.pagos.all()
+        return [{
+            'id': pago.id,
+            'metodo_pago_display': pago.get_metodo_pago_display(),
+            'estado_pago_display': pago.get_estado_pago_display(),
+            'monto_pagado': str(pago.monto_pagado),
+            'id_transaccion_pasarela': pago.id_transaccion_pasarela,
+            'token_webpay_transaccion': pago.token_webpay_transaccion,
+            'fecha_pago': pago.fecha_pago.isoformat() if pago.fecha_pago else None,
+        } for pago in pagos]

@@ -113,28 +113,34 @@ class CrearTransaccionConPedidoAPIView(APIView):
             for item_data in items_carrito:
                 producto = get_object_or_404(Producto, id=item_data.get('producto_id'))
                 cantidad = int(item_data.get('cantidad', 0))
-                # Usar el precio del producto desde la BD para seguridad
-                precio_unitario_bd = producto.precio 
                 
                 if cantidad <= 0:
                     continue # O lanzar error
+
+                # Calcular precio con descuento usando la misma lógica del serializer
+                precio_final, promocion_aplicada = producto.precio_final_con_info_promo
+                precio_original = producto.precio
+                
+                # Calcular descuentos
+                precio_con_descuento = precio_final
+                descuento_total_linea = (precio_original - precio_con_descuento) * cantidad
 
                 DetallePedidoCliente.objects.create(
                     pedido_cliente=pedido_cliente,
                     producto=producto,
                     cantidad=cantidad,
-                    precio_unitario_venta=precio_unitario_bd, # Usar el campo correcto del modelo
-                    # Asumir que no hay descuento aplicado en este punto de creación directa
-                    precio_unitario_con_descuento=precio_unitario_bd,
-                    descuento_total_linea=0
+                    precio_unitario_venta=precio_original,  # Guardar el precio original
+                    precio_unitario_con_descuento=precio_con_descuento,  # Guardar el precio con descuento
+                    descuento_total_linea=descuento_total_linea
                 )
-                total_pedido_calculado += cantidad * precio_unitario_bd
+                total_pedido_calculado += cantidad * precio_con_descuento
             
-            if total_pedido_calculado <= 0:
+            # Calcular totales usando el método del modelo
+            pedido_cliente.calcular_totales_cliente()
+            
+            if pedido_cliente.total_pedido <= 0:
                 # Revertir transacción si el pedido no tiene monto
                 raise ValueError("El total del pedido no puede ser cero o negativo.")
-
-            pedido_cliente.total_pedido = total_pedido_calculado
             
             # --- NUEVO: Reducir el stock inmediatamente al crear el pedido ---
             try:

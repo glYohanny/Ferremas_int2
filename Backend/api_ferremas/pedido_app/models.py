@@ -230,7 +230,11 @@ class PedidoCliente(models.Model):
     def calcular_totales_cliente(self):
         detalles = self.detalles_pedido_cliente.all()
         self.subtotal = sum(detalle.subtotal_linea_cliente() for detalle in detalles if detalle.subtotal_linea_cliente() is not None)
-        # Aquí aplicarías lógica para descuento_total (podría venir de promociones) e impuesto_total
+        
+        # Calcular el descuento total sumando los descuentos de todas las líneas
+        self.descuento_total = sum(detalle.descuento_total_linea for detalle in detalles if detalle.descuento_total_linea is not None)
+        
+        # Aquí aplicarías lógica para impuesto_total
         # from decimal import Decimal
         # self.impuesto_total = self.subtotal * Decimal('0.19') # Ejemplo IVA 19%
         self.total_pedido = (self.subtotal or 0) - (self.descuento_total or 0) + (self.impuesto_total or 0)
@@ -273,3 +277,13 @@ class DetallePedidoCliente(models.Model):
             return self.cantidad * self.precio_unitario_venta
         return 0
     subtotal_linea_cliente.short_description = "Subtotal Línea"
+
+    def calcular_descuentos_linea(self):
+        """Calcula y actualiza los campos de descuento para esta línea"""
+        if self.producto and self.cantidad:
+            precio_original = self.producto.precio
+            precio_con_descuento = self.precio_unitario_venta  # Este ya tiene el descuento aplicado
+            
+            self.precio_unitario_con_descuento = precio_con_descuento
+            self.descuento_total_linea = (precio_original - precio_con_descuento) * self.cantidad
+            self.save(update_fields=['precio_unitario_con_descuento', 'descuento_total_linea'])

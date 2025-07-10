@@ -1,70 +1,53 @@
-from rest_framework import viewsets, permissions, filters
-from .serializers import (
-    SucursalSerializer, SucursalCreateUpdateSerializer,
-    BodegaSerializer, BodegaCreateUpdateSerializer,
-    TipoBodegaSerializer
-)
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters as drf_filters
+
+from .serializers import SucursalSerializer, BodegaSerializer, TipoBodegaSerializer
 from ..models import Sucursal, Bodega, TipoBodega
 
-class TipoBodegaViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar los tipos de bodega.
-    """
-    queryset = TipoBodega.objects.all()
-    serializer_class = TipoBodegaSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]  # Ejemplo: Solo autenticados pueden crear/editar
-    # Ajusta los permisos según tus necesidades (ej., IsAdminUser para restringir a administradores).
-
-    # Opcional:  Si quieres personalizar el comportamiento (ej., añadir validaciones, restringir el
-    # borrado), puedes sobrescribir métodos como create(), update(), destroy().
-
 class SucursalViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar las sucursales.
-    """
     queryset = Sucursal.objects.all()
-    # Ajusta los permisos según tus necesidades.
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['nombre', 'region__nombre', 'comuna__nombre']  # Habilita búsqueda por nombre, región y comuna
-    # Ejemplo: Solo autenticados pueden crear/editar, pero todos pueden leer.
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly] 
-    
-    def get_serializer_class(self):
-        if self.action in ['create', 'update', 'partial_update']:
-            return SucursalCreateUpdateSerializer
-        return SucursalSerializer
+    serializer_class = SucursalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter, drf_filters.OrderingFilter]
+    search_fields = ['nombre', 'direccion']
+    ordering_fields = ['nombre', 'fecha_registro']
 
-    # Recomendación:  Para optimizar las consultas, podrías usar select_related() para precargar los
-    # objetos relacionados (region, comuna) si los usas frecuentemente en la serialización o en la vista.
-    def get_queryset(self):
-        queryset = super().get_queryset().select_related('region', 'comuna')
-        # Para el listado general que se usa en los dropdowns del frontend,
-        # es mejor devolver solo las sucursales activas.
-        # Si un admin necesitara ver todas, se podría añadir un filtro como ?activo=all
-        if self.action == 'list':
-            return queryset.filter(is_active=True)
-        return queryset
-
-    # Opcional:  Si quieres un comportamiento personalizado en la creación o actualización (ej.,
-    # validaciones adicionales), puedes sobrescribir los métodos create() y update().
+    @action(detail=True, methods=['get'])
+    def bodegas(self, request, pk=None):
+        """
+        Obtiene todas las bodegas activas de una sucursal específica.
+        """
+        try:
+            sucursal = self.get_object()
+            bodegas = Bodega.objects.filter(
+                sucursal=sucursal,
+                is_active=True
+            ).select_related('tipo_bodega')
+            
+            serializer = BodegaSerializer(bodegas, many=True)
+            return Response(serializer.data)
+        except Sucursal.DoesNotExist:
+            return Response(
+                {"error": "Sucursal no encontrada"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 class BodegaViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar las bodegas.
-    """
     queryset = Bodega.objects.all()
-    # Ajusta los permisos según tus necesidades.
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['sucursal__nombre', 'tipo_bodega__tipo', 'direccion']  # Permite buscar por sucursal, tipo y dirección
-    ordering_fields = ['sucursal__nombre', 'tipo_bodega__tipo']  # Permite ordenar por sucursal y tipo
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    serializer_class = BodegaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter, drf_filters.OrderingFilter]
+    filterset_fields = ['sucursal', 'tipo_bodega', 'is_active']
+    search_fields = ['direccion']
+    ordering_fields = ['sucursal__nombre', 'tipo_bodega__tipo']
 
-    def get_serializer_class(self):
-        if self.action in ['create', 'update', 'partial_update']:
-            return BodegaCreateUpdateSerializer
-        return BodegaSerializer
-
-    # Recomendación: Similar a SucursalViewSet, usa select_related() para precargar sucursal y tipo_bodega.
-    def get_queryset(self):
-        return super().get_queryset().select_related('sucursal', 'tipo_bodega')
+class TipoBodegaViewSet(viewsets.ModelViewSet):
+    queryset = TipoBodega.objects.all()
+    serializer_class = TipoBodegaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter, drf_filters.OrderingFilter]
+    search_fields = ['tipo']
+    ordering_fields = ['tipo']

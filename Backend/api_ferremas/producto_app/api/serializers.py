@@ -42,8 +42,9 @@ class ProductoSerializer(serializers.ModelSerializer):
     marca_nombre = serializers.CharField(source='marca.nombre', read_only=True, allow_null=True)
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, allow_null=True)
 
-    # Nuevos campos para precios y promociones
-    precio_original = serializers.DecimalField(source='precio', max_digits=10, decimal_places=2, read_only=True)
+    # El campo 'precio_original' ahora se usa para leer y escribir el precio base.
+    # Se mapea al campo 'precio' del modelo.
+    precio_original = serializers.DecimalField(source='precio', max_digits=10, decimal_places=2)
     precio_final = serializers.SerializerMethodField()
     stock_info = serializers.SerializerMethodField() # Nuevo campo para el stock
     info_promocion_aplicada = serializers.SerializerMethodField()
@@ -96,7 +97,7 @@ class ProductoSerializer(serializers.ModelSerializer):
             return {
                 'id': promo.id,
                 'titulo': promo.titulo,
-                'tipo_promocion_display': promo.tipo_promocion_display, 
-                'valor': promo.valor 
+                'tipo_promocion_display': promo.get_tipo_promocion_display(),
+                'valor': promo.valor
             }
         return None

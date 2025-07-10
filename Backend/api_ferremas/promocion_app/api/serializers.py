@@ -11,6 +11,16 @@ class PromocionSerializer(serializers.ModelSerializer):
     objetivo_promocion_detalle = serializers.SerializerMethodField(read_only=True)
     esta_vigente_display = serializers.BooleanField(source='esta_vigente', read_only=True)
 
+    # Campo para leer los detalles del producto de regalo (solo lectura)
+    producto_regalo_detalle = ProductoSerializer(source='producto_regalo', read_only=True)
+    # Campo para escribir el ID del producto de regalo (escritura)
+    producto_regalo = serializers.PrimaryKeyRelatedField(
+        queryset=ProductoModel.objects.all(),
+        allow_null=True,
+        required=False, # Se maneja en la validación
+        write_only=True # No mostrar el ID en la respuesta, solo el detalle
+    )
+
     class Meta:
         model = Promocion
         fields = [
@@ -32,8 +42,10 @@ class PromocionSerializer(serializers.ModelSerializer):
             'limite_uso_total',
             'usos_actuales',
             'solo_para_clientes_registrados',
+            'producto_regalo', # Campo de escritura
+            'producto_regalo_detalle', # Campo de lectura
         ]
-        read_only_fields = ('usos_actuales', 'tipo_promocion_display', 'objetivo_promocion_detalle', 'esta_vigente_display')
+        read_only_fields = ('usos_actuales',) # Simplificado
 
     def get_objetivo_promocion_detalle(self, obj):
         """
@@ -51,7 +63,6 @@ class PromocionSerializer(serializers.ModelSerializer):
         """
         Validaciones a nivel de objeto.
         """
-        # Validar que content_type y object_id apunten a un objeto existente
         content_type = data.get('content_type')
         object_id = data.get('object_id')
 
@@ -62,19 +73,21 @@ class PromocionSerializer(serializers.ModelSerializer):
             except content_type.model_class().DoesNotExist:
                 raise serializers.ValidationError(f"No se encontró un objeto del tipo '{content_type}' con ID '{object_id}'.")
 
-        # Validar el campo 'valor' según el 'tipo_promocion'
+        # Validar el campo 'valor' y 'producto_regalo' según el 'tipo_promocion'
         tipo_promocion = data.get('tipo_promocion')
         valor = data.get('valor')
+        producto_regalo = data.get('producto_regalo')
 
-        if tipo_promocion == Promocion.TipoPromocion.DESCUENTO_PORCENTAJE:
-            if valor is None or not (0 < valor <= 100):
-                raise serializers.ValidationError({
-                    'valor': "Para descuento porcentual, el valor debe estar entre 1 y 100."
-                })
-        elif tipo_promocion in [Promocion.TipoPromocion.PRECIO_FIJO, Promocion.TipoPromocion.DESCUENTO_MONTO_FIJO]:
+        # Validación para 'valor'
+        tipos_que_requieren_valor = [
+            Promocion.TipoPromocion.DESCUENTO_PORCENTAJE,
+            Promocion.TipoPromocion.PRECIO_FIJO,
+            Promocion.TipoPromocion.DESCUENTO_MONTO_FIJO
+        ]
+        if tipo_promocion in tipos_que_requieren_valor:
             if valor is None or valor <= 0:
                 raise serializers.ValidationError({
-                    'valor': f"Para {Promocion.TipoPromocion(tipo_promocion).label}, el valor debe ser mayor que cero."
+                    'valor': f"Para el tipo de promoción '{Promocion.TipoPromocion(tipo_promocion).label}', el valor debe ser positivo."
                 })
         elif tipo_promocion in [Promocion.TipoPromocion.DOS_POR_UNO, Promocion.TipoPromocion.REGALO]:
             # Para estos tipos, el valor podría ser opcional o no usarse.
